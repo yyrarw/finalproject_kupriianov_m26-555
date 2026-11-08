@@ -1,6 +1,9 @@
 """Командный интерфейс ValutaTrade Hub: разбор команд и вывод результатов."""
 
+import os
 import shlex
+
+from prettytable import PrettyTable
 
 from valutatrade_hub.core import usecases
 from valutatrade_hub.core.currencies import supported_codes
@@ -15,6 +18,7 @@ from valutatrade_hub.core.utils import (
     format_timestamp,
     parse_amount,
 )
+from valutatrade_hub.infra.settings import SettingsLoader
 
 PROMPT = "> "
 OPTION_PREFIX = "--"
@@ -29,6 +33,9 @@ HELP_TEXT = """Доступные команды:
   buy --currency <код> --amount <количество>      купить валюту за USD
   sell --currency <код> --amount <количество>     продать валюту за USD
   get-rate --from <код> --to <код>                курс валюты
+  update-rates [--source coingecko|exchangerate]  обновить курсы из API
+  show-rates [--currency <код>] [--top <N>] [--base <код>]
+                                                  курсы из локального кеша
   help                                            справка
   exit                                            выход из программы"""
 
@@ -65,6 +72,17 @@ def take_options(options: dict, required=(), optional=()) -> dict:
     return options
 
 
+def parse_positive_int(value: str) -> int:
+    """Превращает строку в положительное целое число."""
+    try:
+        number = int(value)
+    except ValueError:
+        number = 0
+    if number <= 0:
+        raise CommandError("'top' должен быть положительным целым числом")
+    return number
+
+
 def print_changes(changes) -> None:
     """Печатает изменения балансов "было → стало"."""
     print("Изменения в портфеле:")
@@ -89,6 +107,8 @@ class CommandLineInterface:
             "buy": self.handle_buy,
             "sell": self.handle_sell,
             "get-rate": self.handle_get_rate,
+            "update-rates": self.handle_update_rates,
+            "show-rates": self.handle_show_rates,
             "help": self.handle_help,
         }
 
@@ -185,6 +205,40 @@ class CommandLineInterface:
         updated = format_timestamp(updated_at) if updated_at else "—"
         print(f"Курс {from_code}→{to_code}: {format_rate(rate)} (обновлено: {updated})")
         print(f"Обратный курс {to_code}→{from_code}: {format_rate(1 / rate)}")
+
+    def handle_update_rates(self, options: dict) -> None:
+        """update-rates [--source coingecko|exchangerate]"""
+        take_options(options, optional=("source",))
+        summary = usecases.update_rates(options.get("source"))
+        if summary["errors"]:
+            settings = SettingsLoader()
+            log_path = os.path.join(
+                settings.get("log_dir"), settings.get("parser_log_file")
+            )
+            print(
+                f"Update completed with errors. Total rates updated: "
+                f"{summary['updated']}. Check {log_path} for details."
+            )
+            return
+        print(
+            f"Update successful. Total rates updated: {summary['updated']}. "
+            f"Last refresh: {summary['last_refresh']}"
+        )
+
+    def handle_show_rates(self, options: dict) -> None:
+        """show-rates [--currency <код>] [--top <N>] [--base <код>]"""
+        take_options(options, optional=("currency", "top", "base"))
+        top = parse_positive_int(options["top"]) if "top" in options else None
+        rows, last_refresh = usecases.list_rates(
+            options.get("currency"), top, options.get("base")
+        )
+        print(f"Rates from cache (updated at {last_refresh}):")
+        table = PrettyTable(["Pair", "Rate", "Updated at", "Source"])
+        table.align["Rate"] = "r"
+        for pair, rate, updated_at, source in rows:
+            updated = format_timestamp(updated_at)
+            table.add_row([pair, format_rate(rate), updated, source])
+        print(table)
 
     def handle_help(self, options: dict) -> None:
         """help"""
