@@ -3,12 +3,17 @@
 from valutatrade_hub.core.currencies import get_currency
 from valutatrade_hub.core.exceptions import ApiRequestError, CurrencyNotFoundError
 from valutatrade_hub.core.models import Portfolio, User, Wallet
-from valutatrade_hub.core.utils import convert, format_timestamp, is_fresh
+from valutatrade_hub.core.utils import convert, format_timestamp, is_crypto, is_fresh
 from valutatrade_hub.decorators import log_action
 from valutatrade_hub.infra.database import DatabaseManager
 from valutatrade_hub.infra.settings import SettingsLoader
+from valutatrade_hub.parser_service.updater import RatesUpdater, build_clients
 
 RATE_PAIR_SEPARATOR = "_"
+EMPTY_CACHE_MESSAGE = (
+    "Локальный кеш курсов пуст. Выполните 'update-rates', чтобы загрузить данные."
+)
+NOT_IN_CACHE_MESSAGE = "Курс для '{code}' не найден в кеше."
 
 
 def base_currency() -> str:
@@ -86,8 +91,62 @@ def get_or_create_wallet(portfolio: Portfolio, currency_code: str) -> Wallet:
 
 
 def refresh_rates() -> None:
-    """Обновляет кеш курсов. Пока Parser Service не подключен — недоступно."""
-    raise ApiRequestError("Parser Service не подключен")
+    """Обновляет кеш курсов через Parser Service (все источники)."""
+    RatesUpdater().run_update()
+
+
+def update_rates(source: str | None = None) -> dict:
+    """Обновляет курсы из всех источников или одного; возвращает сводку."""
+    return RatesUpdater(build_clients(source)).run_update()
+
+
+def list_rates(
+    currency: str | None = None, top: int | None = None, base: str | None = None
+) -> tuple[list[tuple], str | None]:
+    """Курсы из кеша с фильтрами: валюта, топ-N криптовалют, другая база.
+
+    Возвращает строки (пара, курс, время обновления, источник) и last_refresh.
+    """
+    snapshot = DatabaseManager().read("rates")
+    pairs = snapshot.get("pairs", {})
+    if not pairs:
+        raise ValueError(EMPTY_CACHE_MESSAGE)
+
+    default_base = base_currency()
+    base = get_currency(base).code if base else default_base
+    rows = [
+        (key.split(RATE_PAIR_SEPARATOR)[0], entry)
+        for key, entry in pairs.items()
+    ]
+    if base != default_base:
+        base_entry = pairs.get(pair_key(base, default_base))
+        if base_entry is None:
+            raise ValueError(NOT_IN_CACHE_MESSAGE.format(code=base))
+        rows = [
+            (code, {**entry, "rate": entry["rate"] / base_entry["rate"]})
+            for code, entry in rows
+            if code != base
+        ]
+        rows.append((default_base, {**base_entry, "rate": 1 / base_entry["rate"]}))
+
+    if currency:
+        code = currency.strip().upper()
+        rows = [row for row in rows if row[0] == code]
+        if not rows:
+            raise ValueError(NOT_IN_CACHE_MESSAGE.format(code=code))
+    if top is not None:
+        if top <= 0:
+            raise ValueError("'top' должен быть положительным целым числом")
+        rows = [row for row in rows if is_crypto(row[0])]
+        rows = sorted(rows, key=lambda row: row[1]["rate"], reverse=True)[:top]
+    else:
+        rows = sorted(rows, key=lambda row: row[0])
+
+    result = [
+        (pair_key(code, base), entry["rate"], entry["updated_at"], entry["source"])
+        for code, entry in rows
+    ]
+    return result, snapshot.get("last_refresh")
 
 
 def pair_key(from_code: str, to_code: str) -> str:

@@ -12,8 +12,10 @@ from valutatrade_hub.core.exceptions import CurrencyNotFoundError
 
 FIAT_PRECISION = 2
 CRYPTO_PRECISION = 4
-LARGE_RATE_THRESHOLD = 1
+LARGE_RATE_THRESHOLD = 100
+MEDIUM_RATE_THRESHOLD = 1
 LARGE_RATE_FORMAT = ".2f"
+MEDIUM_RATE_FORMAT = ".4f"
 SMALL_RATE_FORMAT = ".8f"
 DISPLAY_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 UTC_SUFFIX = "Z"
@@ -60,9 +62,12 @@ def format_amount(code: str, amount: float) -> str:
 
 
 def format_rate(rate: float) -> str:
-    """Форматирует курс: крупные значения с 2 знаками, мелкие — с 8."""
-    fmt = LARGE_RATE_FORMAT if rate >= LARGE_RATE_THRESHOLD else SMALL_RATE_FORMAT
-    return format(rate, fmt)
+    """Форматирует курс: от 100 — 2 знака, от 1 — 4 знака, меньше 1 — 8 знаков."""
+    if rate >= LARGE_RATE_THRESHOLD:
+        return format(rate, LARGE_RATE_FORMAT)
+    if rate >= MEDIUM_RATE_THRESHOLD:
+        return format(rate, MEDIUM_RATE_FORMAT)
+    return format(rate, SMALL_RATE_FORMAT)
 
 
 def utc_now() -> datetime:
