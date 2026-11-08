@@ -100,6 +100,7 @@ class CoinGeckoClient(BaseApiClient):
     SOURCE = "CoinGecko"
 
     def fetch_rates(self) -> dict[str, float]:
+        """Курсы BTC_USD, ETH_USD, SOL_USD из /simple/price."""
         ids = {
             code: self.config.CRYPTO_ID_MAP[code]
             for code in self.config.CRYPTO_CURRENCIES
@@ -126,6 +127,7 @@ class ExchangeRateApiClient(BaseApiClient):
     SOURCE = "ExchangeRate-API"
 
     def fetch_rates(self) -> dict[str, float]:
+        """Курсы EUR_USD, GBP_USD, RUB_USD из /latest/USD."""
         key = self.config.EXCHANGERATE_API_KEY
         if not key:
             raise ApiRequestError(

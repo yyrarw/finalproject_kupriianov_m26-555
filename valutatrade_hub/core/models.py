@@ -59,28 +59,34 @@ class User:
 
     @property
     def user_id(self) -> int:
+        """Уникальный идентификатор пользователя."""
         return self._user_id
 
     @property
     def username(self) -> str:
+        """Имя пользователя."""
         return self._username
 
     @username.setter
     def username(self, value: str) -> None:
+        """Задает имя: непустая строка, пробелы по краям обрезаются."""
         if not isinstance(value, str) or not value.strip():
             raise ValueError("Имя пользователя не может быть пустым")
         self._username = value.strip()
 
     @property
     def hashed_password(self) -> str:
+        """Хеш пароля sha256(password + salt)."""
         return self._hashed_password
 
     @property
     def salt(self) -> str:
+        """Соль пользователя."""
         return self._salt
 
     @property
     def registration_date(self) -> datetime:
+        """Дата регистрации."""
         return self._registration_date
 
     def get_user_info(self) -> str:
@@ -141,10 +147,12 @@ class Wallet:
 
     @property
     def balance(self) -> float:
+        """Текущий баланс."""
         return self._balance
 
     @balance.setter
     def balance(self, value: float) -> None:
+        """Задает баланс: только неотрицательное число."""
         if not isinstance(value, (int, float)) or isinstance(value, bool):
             raise TypeError("Баланс должен быть числом")
         if not math.isfinite(value) or value < 0:
@@ -191,6 +199,7 @@ class Portfolio:
 
     @property
     def user_id(self) -> int:
+        """Уникальный идентификатор пользователя."""
         return self._user_id
 
     @property

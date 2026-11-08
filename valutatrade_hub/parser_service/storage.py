@@ -31,6 +31,7 @@ class RatesStorage:
 
     @property
     def rates_path(self) -> str:
+        """Путь к снимку курсов rates.json."""
         return self.config.RATES_FILE_PATH
 
     def load_snapshot(self) -> dict:
