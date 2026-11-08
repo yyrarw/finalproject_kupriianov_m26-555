@@ -139,9 +139,11 @@ class ExchangeRateApiClient(BaseApiClient):
             self.raise_api_error(data)
 
         self.last_meta["provider_time"] = data.get("time_last_update_utc")
+        # API v6 с ключом отдает курсы в "conversion_rates", открытый — в "rates"
+        quotes = data.get("conversion_rates") or data.get("rates") or {}
         rates = {}
         for code in self.config.FIAT_CURRENCIES:
-            base_to_code = data.get("rates", {}).get(code)
+            base_to_code = quotes.get(code)
             # API отдает "1 USD = X EUR"; в кеше храним "1 EUR = Y USD", Y = 1 / X
             if is_valid_rate(base_to_code):
                 rates[self.pair(code)] = 1 / base_to_code
