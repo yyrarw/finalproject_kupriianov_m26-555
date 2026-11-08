@@ -6,6 +6,9 @@ import math
 import secrets
 from datetime import datetime
 
+from valutatrade_hub.core.exceptions import InsufficientFundsError
+from valutatrade_hub.core.utils import format_amount, validate_currency_code
+
 MIN_PASSWORD_LENGTH = 4
 SALT_BYTES = 8
 DEFAULT_BASE_CURRENCY = "USD"
@@ -133,7 +136,7 @@ class Wallet:
     """Кошелек пользователя в одной валюте."""
 
     def __init__(self, currency_code: str, balance: float = 0.0):
-        self.currency_code = currency_code
+        self.currency_code = validate_currency_code(currency_code)
         self.balance = balance
 
     @property
@@ -156,15 +159,17 @@ class Wallet:
         """Списывает сумму, если на балансе достаточно средств."""
         amount = validate_amount(amount)
         if amount > self._balance:
-            raise ValueError(
-                f"Недостаточно средств: доступно {self._balance:.4f} "
-                f"{self.currency_code}, требуется {amount:.4f} {self.currency_code}"
+            raise InsufficientFundsError(
+                available=format_amount(self.currency_code, self._balance),
+                required=format_amount(self.currency_code, amount),
+                code=self.currency_code,
             )
         self.balance = self._balance - amount
 
     def get_balance_info(self) -> str:
         """Возвращает строку с текущим балансом."""
-        return f"{self.currency_code}: {self._balance:.4f}"
+        balance = format_amount(self.currency_code, self._balance)
+        return f"{self.currency_code}: {balance}"
 
     def to_dict(self) -> dict:
         """Сериализует кошелек для portfolios.json."""

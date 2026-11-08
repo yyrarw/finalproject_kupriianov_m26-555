@@ -3,7 +3,12 @@
 import shlex
 
 from valutatrade_hub.core import usecases
-from valutatrade_hub.core.models import DEFAULT_BASE_CURRENCY
+from valutatrade_hub.core.currencies import supported_codes
+from valutatrade_hub.core.exceptions import (
+    ApiRequestError,
+    CurrencyNotFoundError,
+    InsufficientFundsError,
+)
 from valutatrade_hub.core.utils import (
     format_amount,
     format_rate,
@@ -14,6 +19,7 @@ from valutatrade_hub.core.utils import (
 PROMPT = "> "
 OPTION_PREFIX = "--"
 SEPARATOR_LINE = "-" * 33
+API_ERROR_HINT = "Повторите попытку позже или проверьте подключение к сети."
 HELP_TEXT = """Доступные команды:
   register --username <имя> --password <пароль>   регистрация
   login --username <имя> --password <пароль>      вход
@@ -120,7 +126,7 @@ class CommandLineInterface:
         """show-portfolio [--base <валюта>]"""
         take_options(options, optional=("base",))
         user = self.require_login()
-        base = options.get("base", DEFAULT_BASE_CURRENCY).upper()
+        base = options.get("base", usecases.base_currency()).upper()
         rows, total = usecases.get_portfolio_summary(user, base)
         if not rows:
             print(f"Портфель пользователя '{user.username}' пуст")
@@ -135,12 +141,11 @@ class CommandLineInterface:
         """deposit --currency <код> --amount <сумма>"""
         take_options(options, required=("currency", "amount"))
         user = self.require_login()
-        code = options["currency"].upper()
-        before, after = usecases.deposit(
-            user, code, parse_amount(options["amount"])
+        result = usecases.deposit(
+            user, options["currency"], parse_amount(options["amount"])
         )
-        print(f"Кошелек {code} пополнен")
-        print_changes([(code, before, after)])
+        print(f"Кошелек {result['changes'][0][0]} пополнен")
+        print_changes(result["changes"])
 
     def handle_buy(self, options: dict) -> None:
         """buy --currency <код> --amount <количество>"""
@@ -152,10 +157,10 @@ class CommandLineInterface:
         code = result["currency"]
         print(
             f"Покупка выполнена: {format_amount(code, result['amount'])} {code} "
-            f"по курсу {result['rate']:.2f} {DEFAULT_BASE_CURRENCY}/{code}"
+            f"по курсу {format_rate(result['rate'])} {result['base']}/{code}"
         )
         print_changes(result["changes"])
-        print(f"Оценочная стоимость покупки: {result['value']:,.2f} USD")
+        print(f"Оценочная стоимость покупки: {result['value']:,.2f} {result['base']}")
 
     def handle_sell(self, options: dict) -> None:
         """sell --currency <код> --amount <количество>"""
@@ -167,10 +172,10 @@ class CommandLineInterface:
         code = result["currency"]
         print(
             f"Продажа выполнена: {format_amount(code, result['amount'])} {code} "
-            f"по курсу {result['rate']:.2f} {DEFAULT_BASE_CURRENCY}/{code}"
+            f"по курсу {format_rate(result['rate'])} {result['base']}/{code}"
         )
         print_changes(result["changes"])
-        print(f"Оценочная выручка: {result['value']:,.2f} USD")
+        print(f"Оценочная выручка: {result['value']:,.2f} {result['base']}")
 
     def handle_get_rate(self, options: dict) -> None:
         """get-rate --from <код> --to <код>"""
@@ -213,6 +218,14 @@ class CommandLineInterface:
             try:
                 if not self.execute(line):
                     break
+            except InsufficientFundsError as error:
+                print(error)
+            except CurrencyNotFoundError as error:
+                print(error)
+                print(f"Поддерживаемые валюты: {', '.join(supported_codes())}")
+            except ApiRequestError as error:
+                print(error)
+                print(API_ERROR_HINT)
             except (CommandError, ValueError, TypeError) as error:
                 print(error)
 
