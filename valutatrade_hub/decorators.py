@@ -11,13 +11,13 @@ RESULT_ERROR = "ERROR"
 
 
 def _format_value(name: str, value) -> str:
-    """Курс как в CLI (2 или 8 знаков), прочие числа с 4 знаками, строки в кавычках."""
+    """Курс как в CLI, прочие числа с 4 знаками, строки через repr."""
     if name == "rate" and isinstance(value, float):
         return format_rate(value)
     if isinstance(value, float):
         return f"{value:.4f}"
     if isinstance(value, str) and name not in ("result", "error_type"):
-        return f"'{value}'"
+        return repr(value)
     return str(value)
 
 
