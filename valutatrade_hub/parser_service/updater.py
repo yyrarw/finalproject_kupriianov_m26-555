@@ -5,15 +5,19 @@ from valutatrade_hub.core.utils import to_iso, utc_now
 from valutatrade_hub.logging_config import get_parser_logger
 from valutatrade_hub.parser_service.api_clients import (
     BaseApiClient,
+    CoinbaseClient,
     CoinGeckoClient,
     ExchangeRateApiClient,
 )
 from valutatrade_hub.parser_service.config import ParserConfig
 from valutatrade_hub.parser_service.storage import RatesStorage, make_record_id
 
+# Порядок важен: если пару вернули несколько источников, берется первый
+# (CoinGecko — основной для криптовалют, Coinbase — резервный)
 CLIENTS_BY_SOURCE = {
     "coingecko": CoinGeckoClient,
     "exchangerate": ExchangeRateApiClient,
+    "coinbase": CoinbaseClient,
 }
 
 
@@ -66,11 +70,10 @@ class RatesUpdater:
             fetched_at = to_iso(utc_now())
             self.logger.info(f"{client.SOURCE}: OK ({len(rates)} rates)")
             for key, rate in rates.items():
-                pairs[key] = {
-                    "rate": rate,
-                    "updated_at": fetched_at,
-                    "source": client.SOURCE,
-                }
+                pairs.setdefault(
+                    key,
+                    {"rate": rate, "updated_at": fetched_at, "source": client.SOURCE},
+                )
                 history.append(self._history_record(client, key, rate, fetched_at))
 
         if not pairs:

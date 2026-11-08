@@ -166,3 +166,28 @@ class ExchangeRateApiClient(BaseApiClient):
         reason = EXCHANGERATE_ERROR_REASONS.get(error_type, error_type)
         status = f" (HTTP {status_code})" if status_code else ""
         raise ApiRequestError(f"{reason}{status}")
+
+
+class CoinbaseClient(BaseApiClient):
+    """Резервные курсы криптовалют из публичного API Coinbase (без ключа)."""
+
+    SOURCE = "Coinbase"
+
+    def fetch_rates(self) -> dict[str, float]:
+        """Курсы BTC_USD, ETH_USD, SOL_USD из /v2/exchange-rates?currency=USD."""
+        data = self.get_json(
+            self.config.COINBASE_URL, {"currency": self.config.BASE_CURRENCY}
+        )
+        quotes = data.get("data", {}).get("rates", {})
+        rates = {}
+        for code in self.config.CRYPTO_CURRENCIES:
+            # API отдает "1 USD = X BTC" строкой; в кеше храним "1 BTC = Y USD"
+            try:
+                base_to_code = float(quotes[code])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if is_valid_rate(base_to_code):
+                rates[self.pair(code)] = 1 / base_to_code
+        if not rates:
+            raise ApiRequestError("в ответе нет курсов")
+        return rates
