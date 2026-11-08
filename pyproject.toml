@@ -1,6 +1,6 @@
 [project]
 name = "finalproject-kupriianov-m26-555"
-version = "0.1.0"
+version = "1.0.0"
 description = "ValutaTrade Hub: консольная платформа для симуляции торговли фиатными и криптовалютами"
 readme = "README.md"
 authors = [
