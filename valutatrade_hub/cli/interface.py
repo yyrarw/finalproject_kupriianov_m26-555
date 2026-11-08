@@ -33,7 +33,8 @@ HELP_TEXT = """Доступные команды:
   buy --currency <код> --amount <количество>      купить валюту за USD
   sell --currency <код> --amount <количество>     продать валюту за USD
   get-rate --from <код> --to <код>                курс валюты
-  update-rates [--source coingecko|exchangerate]  обновить курсы из API
+  update-rates [--source coingecko|exchangerate|coinbase]
+                                                  обновить курсы из API
   show-rates [--currency <код>] [--top <N>] [--base <код>]
                                                   курсы из локального кеша
   help                                            справка
@@ -207,7 +208,7 @@ class CommandLineInterface:
         print(f"Обратный курс {to_code}→{from_code}: {format_rate(1 / rate)}")
 
     def handle_update_rates(self, options: dict) -> None:
-        """update-rates [--source coingecko|exchangerate]"""
+        """update-rates [--source coingecko|exchangerate|coinbase]"""
         take_options(options, optional=("source",))
         summary = usecases.update_rates(options.get("source"))
         if summary["errors"]:

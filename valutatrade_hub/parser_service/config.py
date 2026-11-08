@@ -40,6 +40,8 @@ class ParserConfig:
     # Эндпоинты
     COINGECKO_URL: str = "https://api.coingecko.com/api/v3/simple/price"
     EXCHANGERATE_API_URL: str = "https://v6.exchangerate-api.com/v6"
+    # Резервный источник курсов криптовалют (публичный, без ключа)
+    COINBASE_URL: str = "https://api.coinbase.com/v2/exchange-rates"
 
     # Списки валют
     BASE_CURRENCY: str = "USD"
