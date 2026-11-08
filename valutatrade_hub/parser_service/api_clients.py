@@ -64,13 +64,10 @@ class BaseApiClient(ABC):
             )
         except requests.exceptions.Timeout:
             raise ApiRequestError(
-                f"{self.SOURCE}: превышено время ожидания "
-                f"({self.config.REQUEST_TIMEOUT} с)"
+                f"превышено время ожидания ({self.config.REQUEST_TIMEOUT} с)"
             ) from None
         except requests.exceptions.RequestException as error:
-            raise ApiRequestError(
-                f"{self.SOURCE}: сетевая ошибка ({type(error).__name__})"
-            ) from None
+            raise ApiRequestError(f"сетевая ошибка ({type(error).__name__})") from None
 
         self.last_meta = {
             "request_ms": round((time.monotonic() - started) * MS_IN_SECOND),
@@ -81,7 +78,7 @@ class BaseApiClient(ABC):
         try:
             return response.json()
         except ValueError:
-            raise ApiRequestError(f"{self.SOURCE}: ответ не в формате JSON") from None
+            raise ApiRequestError("ответ не в формате JSON") from None
 
     def check_response(self, response) -> None:
         """Переводит HTTP-статус ошибки в понятное сообщение."""
@@ -94,7 +91,7 @@ class BaseApiClient(ABC):
             reason = "сервер недоступен"
         else:
             reason = HTTP_ERROR_REASONS.get(status_code, "неожиданный ответ сервера")
-        raise ApiRequestError(f"{self.SOURCE}: {reason} (HTTP {status_code})")
+        raise ApiRequestError(f"{reason} (HTTP {status_code})")
 
 
 class CoinGeckoClient(BaseApiClient):
@@ -119,7 +116,7 @@ class CoinGeckoClient(BaseApiClient):
                 rates[self.pair(code)] = float(value)
                 self.raw_ids[self.pair(code)] = coin_id
         if not rates:
-            raise ApiRequestError(f"{self.SOURCE}: в ответе нет курсов")
+            raise ApiRequestError("в ответе нет курсов")
         return rates
 
 
@@ -132,8 +129,7 @@ class ExchangeRateApiClient(BaseApiClient):
         key = self.config.EXCHANGERATE_API_KEY
         if not key:
             raise ApiRequestError(
-                f"{self.SOURCE}: не задан ключ EXCHANGERATE_API_KEY "
-                "(переменная окружения или файл .env)"
+                "не задан ключ EXCHANGERATE_API_KEY (переменная окружения или .env)"
             )
         base = self.config.BASE_CURRENCY
         data = self.get_json(f"{self.config.EXCHANGERATE_API_URL}/{key}/latest/{base}")
@@ -148,7 +144,7 @@ class ExchangeRateApiClient(BaseApiClient):
             if is_valid_rate(base_to_code):
                 rates[self.pair(code)] = 1 / base_to_code
         if not rates:
-            raise ApiRequestError(f"{self.SOURCE}: в ответе нет курсов")
+            raise ApiRequestError("в ответе нет курсов")
         return rates
 
     def check_response(self, response) -> None:
@@ -167,4 +163,4 @@ class ExchangeRateApiClient(BaseApiClient):
         error_type = data.get("error-type", "unknown")
         reason = EXCHANGERATE_ERROR_REASONS.get(error_type, error_type)
         status = f" (HTTP {status_code})" if status_code else ""
-        raise ApiRequestError(f"{self.SOURCE}: {reason}{status}")
+        raise ApiRequestError(f"{reason}{status}")
