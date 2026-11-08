@@ -1,0 +1,21 @@
+[project]
+name = "finalproject-kupriianov-m26-555"
+version = "0.1.0"
+description = "ValutaTrade Hub: консольная платформа для симуляции торговли фиатными и криптовалютами"
+readme = "README.md"
+authors = [
+    { name = "Yurii Kupriianov", email = "yyrarw@yandex.ru" }
+]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+valutatrade-hub = "valutatrade_hub.cli.interface:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "valutatrade_hub"
+module-root = ""
