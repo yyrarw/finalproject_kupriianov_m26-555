@@ -7,9 +7,9 @@
 Система состоит из двух сервисов:
 
 - **Core Service** — CLI, пользователи, портфели, сделки, работа с кешем курсов;
-- **Parser Service** — получает курсы из CoinGecko (криптовалюты) и
-  ExchangeRate-API (фиат), сохраняет снимок `data/rates.json` и историю
-  `data/exchange_rates.json`.
+- **Parser Service** — получает курсы из CoinGecko (криптовалюты),
+  ExchangeRate-API (фиат) и Coinbase (резервный источник криптовалют),
+  сохраняет снимок `data/rates.json` и историю `data/exchange_rates.json`.
 
 Проект написан в объектно-ориентированном стиле: модели `User`, `Wallet`,
 `Portfolio`, иерархия валют `Currency` → `FiatCurrency` / `CryptoCurrency`,
@@ -43,7 +43,7 @@ finalproject_kupriianov_m26-555/
 │   │   └── database.py         # Singleton DatabaseManager (JSON-хранилище)
 │   ├── parser_service/
 │   │   ├── config.py           # ParserConfig: API, валюты, пути, таймауты
-│   │   ├── api_clients.py      # BaseApiClient, CoinGeckoClient, ExchangeRateApiClient
+│   │   ├── api_clients.py      # BaseApiClient и клиенты CoinGecko, ExchangeRate-API, Coinbase
 │   │   ├── updater.py          # RatesUpdater
 │   │   ├── storage.py          # запись rates.json и exchange_rates.json
 │   │   └── scheduler.py        # периодическое обновление
@@ -82,7 +82,7 @@ export EXCHANGERATE_API_KEY=ваш_ключ        # переменная окр
 echo "EXCHANGERATE_API_KEY=ваш_ключ" > .env  # или файл .env в корне проекта
 ```
 
-Файл `.env` добавлен в `.gitignore`. CoinGecko используется без ключа.
+Файл `.env` добавлен в `.gitignore`. CoinGecko и Coinbase используются без ключа.
 
 ## Запуск
 
@@ -105,7 +105,7 @@ make project        # или: uv run valutatrade-hub, или: python main.py
 | `buy --currency <код> --amount <количество>` | купить валюту за USD |
 | `sell --currency <код> --amount <количество>` | продать валюту за USD |
 | `get-rate --from <код> --to <код>` | курс одной валюты к другой |
-| `update-rates [--source coingecko\|exchangerate]` | обновить курсы из API |
+| `update-rates [--source coingecko\|exchangerate\|coinbase]` | обновить курсы из API |
 | `show-rates [--currency <код>] [--top <N>] [--base <код>]` | курсы из кеша |
 
 Поддерживаемые валюты: USD, EUR, GBP, RUB (фиат), BTC, ETH, SOL (крипто).
@@ -195,16 +195,26 @@ ExchangeRate-API сохраняется в `meta.provider_time` истории).
 ## Parser Service
 
 - `update-rates` в CLI — немедленное обновление из всех источников или одного
-  (`--source coingecko` / `--source exchangerate`);
+  (`--source coingecko` / `--source exchangerate` / `--source coinbase`);
 - `valutatrade-parser --interval 300 [--iterations N]` — периодическое
   обновление (планировщик, остановка Ctrl+C).
 
+Источники:
+
+| Источник | Валюты | Ключ | Роль |
+|---|---|---|---|
+| CoinGecko | BTC, ETH, SOL | не нужен | основной для криптовалют |
+| ExchangeRate-API | EUR, GBP, RUB | `EXCHANGERATE_API_KEY` | фиат |
+| Coinbase | BTC, ETH, SOL | не нужен | резервный для криптовалют |
+
 Как это работает:
 
-1. `RatesUpdater` опрашивает клиентов. Сбой одного источника логируется и не
-   мешает остальным; если не ответил ни один — `ApiRequestError`.
-2. Курсы приводятся к формату `{"BTC_USD": 59337.21}`. ExchangeRate-API отдает
-   «1 USD = X EUR», поэтому курс EUR_USD считается как 1 / X.
+1. `RatesUpdater` опрашивает клиентов по порядку. Сбой одного источника
+   логируется и не мешает остальным; если не ответил ни один — `ApiRequestError`.
+   Если пару вернули несколько источников, в кеш идет первый (CoinGecko
+   приоритетнее Coinbase), а в историю пишутся замеры всех источников.
+2. Курсы приводятся к формату `{"BTC_USD": 59337.21}`. ExchangeRate-API и
+   Coinbase отдают «1 USD = X валюты», поэтому курс к USD считается как 1 / X.
 3. `data/rates.json` обновляется: пара заменяется, только если новые данные
    свежее. Запись атомарная: временный файл → `os.replace`.
 4. В `data/exchange_rates.json` добавляются записи истории с id вида
@@ -253,5 +263,6 @@ make lint           # uv run ruff check .
 ## Ограничения сети
 
 Если CoinGecko недоступен (например, заблокирован корпоративным прокси),
-`update-rates` обновит фиатные курсы и сообщит о сбое CoinGecko, а операции
-с криптовалютами вернут понятную ошибку «курс недоступен».
+`update-rates` сообщит о сбое, а курсы криптовалют будут получены из Coinbase.
+Если недоступны оба источника, операции с криптовалютами вернут понятную
+ошибку «курс недоступен».
